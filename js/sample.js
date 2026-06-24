@@ -1,0 +1,34 @@
+export const SAMPLE_JSON = `{
+  "name": "json-explorer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A fast, private, client-side JSON viewer and formatter.",
+  "active": true,
+  "downloads": 1048576,
+  "ratio": 0.8675,
+  "releasedAt": "2026-01-14T09:30:00Z",
+  "maintainer": null,
+  "bigId": 90071992547409930000123,
+  "tags": ["viewer", "formatter", "validator", "offline"],
+  "stats": {
+    "stars": 4096,
+    "forks": 312,
+    "openIssues": 7,
+    "languages": { "JavaScript": 78.4, "CSS": 15.1, "HTML": 6.5 }
+  },
+  "team": [
+    { "name": "Ada", "role": "lead", "commits": 1284, "remote": true },
+    { "name": "Linus", "role": "reviewer", "commits": 877, "remote": false },
+    { "name": "Grace", "role": "design", "commits": 540, "remote": true }
+  ],
+  "features": {
+    "tree": { "collapsible": true, "search": true, "maxDepthTested": 64 },
+    "format": { "indents": [2, 4, "tab"], "sortKeys": true },
+    "export": { "copy": true, "download": true, "minify": true }
+  },
+  "notes": "Supports unicode → café, emoji 🚀, and \\"escaped\\" characters.",
+  "history": [
+    { "v": "0.9.0", "changes": ["beta tree view", "drag and drop"] },
+    { "v": "0.8.0", "changes": ["initial parser", "line/column errors"] }
+  ]
+}`;
