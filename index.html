@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JSON Explorer — validate, format & explore JSON</title>
+  <meta name="description" content="Validate, format, minify and explore JSON in an interactive collapsible tree. Fast, private and 100% client-side — your JSON never leaves your browser." />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" content="#0d9488" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="assets/icon.svg" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#input-editor">Skip to editor</a>
+
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1" />
+            <path d="M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1" />
+          </svg>
+        </span>
+        <div class="brand-text">
+          <span class="brand-name">JSON Explorer</span>
+          <span class="brand-sub">Validate · Format · Explore</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <span class="privacy-badge" title="All processing happens locally in your browser.">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+          100% client-side · your JSON never leaves your browser
+        </span>
+        <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle colour theme" title="Toggle light / dark">
+          <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+          </svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <div class="workspace">
+      <!-- INPUT PANEL -->
+      <section class="panel panel-input" aria-label="JSON input">
+        <div class="panel-head">
+          <h2 class="panel-title">Input</h2>
+          <div class="panel-tools">
+            <button id="btn-sample" class="btn btn-ghost" type="button">Load sample</button>
+            <button id="btn-paste" class="btn btn-ghost" type="button">Paste</button>
+            <label class="btn btn-ghost" for="file-input">Upload
+              <input id="file-input" type="file" accept=".json,application/json,text/plain" hidden />
+            </label>
+            <button id="btn-clear" class="btn btn-ghost" type="button">Clear</button>
+          </div>
+        </div>
+
+        <div class="editor-wrap" id="editor-wrap">
+          <div class="gutter" id="gutter" aria-hidden="true"></div>
+          <textarea id="input-editor" class="editor" spellcheck="false" autocomplete="off"
+            autocapitalize="off" wrap="off" placeholder="Paste JSON here, drop a .json file, or load the sample…"
+            aria-label="JSON input editor"></textarea>
+          <div class="drop-overlay" id="drop-overlay" aria-hidden="true">
+            <div class="drop-inner">
+              <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" />
+              </svg>
+              <span>Drop your <strong>.json</strong> file</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-bar" id="status-bar" role="status" aria-live="polite">
+          <span class="status-state status-empty" id="status-state">Awaiting input</span>
+          <span class="status-detail" id="status-detail"></span>
+          <button class="status-jump" id="btn-jump-error" type="button" hidden>Jump to error</button>
+        </div>
+
+        <div class="stats-row" id="stats-row" hidden>
+          <span class="stat" id="stat-size"></span>
+          <span class="stat" id="stat-keys"></span>
+          <span class="stat" id="stat-arrays"></span>
+          <span class="stat" id="stat-objects"></span>
+          <span class="stat" id="stat-depth"></span>
+        </div>
+      </section>
+
+      <!-- OUTPUT PANEL -->
+      <section class="panel panel-output" aria-label="JSON output">
+        <div class="panel-head panel-head-tabs">
+          <div class="tabs" role="tablist" aria-label="Output view">
+            <button class="tab is-active" id="tab-tree" role="tab" aria-selected="true" data-view="tree">Tree</button>
+            <button class="tab" id="tab-formatted" role="tab" aria-selected="false" data-view="formatted">Formatted</button>
+            <button class="tab" id="tab-minified" role="tab" aria-selected="false" data-view="minified">Minified</button>
+          </div>
+          <div class="panel-tools">
+            <div class="select-wrap" title="Indentation">
+              <select id="indent-select" class="select" aria-label="Indentation">
+                <option value="2">2 spaces</option>
+                <option value="4">4 spaces</option>
+                <option value="tab">Tabs</option>
+              </select>
+            </div>
+            <label class="toggle" title="Sort object keys alphabetically">
+              <input type="checkbox" id="sort-keys" />
+              <span>Sort keys</span>
+            </label>
+            <label class="toggle" title="Strip // and /* */ comments and trailing commas before parsing">
+              <input type="checkbox" id="lenient" />
+              <span>Lenient</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Tree toolbar -->
+        <div class="output-toolbar" id="tree-toolbar">
+          <div class="toolbar-group">
+            <button id="btn-expand" class="btn btn-ghost btn-sm" type="button">Expand all</button>
+            <button id="btn-collapse" class="btn btn-ghost btn-sm" type="button">Collapse all</button>
+          </div>
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+            </svg>
+            <input id="search-input" class="search-input" type="search" placeholder="Search keys & values…" aria-label="Search the tree" />
+            <span class="search-count" id="search-count"></span>
+            <button id="btn-search-prev" class="search-nav" type="button" aria-label="Previous match" title="Previous (Shift+Enter)">‹</button>
+            <button id="btn-search-next" class="search-nav" type="button" aria-label="Next match" title="Next (Enter)">›</button>
+          </div>
+        </div>
+
+        <!-- Text toolbar (formatted / minified) -->
+        <div class="output-toolbar" id="text-toolbar" hidden>
+          <div class="toolbar-group">
+            <button id="btn-copy-text" class="btn btn-primary btn-sm" type="button">Copy</button>
+            <button id="btn-download" class="btn btn-ghost btn-sm" type="button">Download</button>
+          </div>
+          <div class="download-name">
+            <input id="filename" class="filename-input" type="text" value="data.json" aria-label="Download filename" spellcheck="false" />
+          </div>
+        </div>
+
+        <div class="output-body">
+          <!-- TREE VIEW -->
+          <div class="view view-tree is-active" id="view-tree" role="tabpanel" aria-labelledby="tab-tree">
+            <div class="tree-scroll" id="tree-scroll">
+              <div class="tree" id="tree-container"></div>
+            </div>
+            <div class="path-bar" id="path-bar" hidden>
+              <code class="path-text" id="path-text"></code>
+              <div class="path-actions">
+                <button class="chip" id="btn-copy-path" type="button" title="Copy dot-notation path">Copy path</button>
+                <button class="chip" id="btn-copy-bracket" type="button" title="Copy bracket-notation path">Bracket</button>
+                <button class="chip" id="btn-copy-node" type="button" title="Copy this node's value">Copy value</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- FORMATTED VIEW -->
+          <div class="view view-text" id="view-formatted" role="tabpanel" aria-labelledby="tab-formatted" hidden>
+            <pre class="code-pre" id="formatted-pre" tabindex="0"></pre>
+          </div>
+
+          <!-- MINIFIED VIEW -->
+          <div class="view view-text" id="view-minified" role="tabpanel" aria-labelledby="tab-minified" hidden>
+            <pre class="code-pre code-pre-wrap" id="minified-pre" tabindex="0"></pre>
+          </div>
+
+          <!-- EMPTY STATE -->
+          <div class="empty-state" id="empty-state">
+            <div class="empty-art" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1" />
+                <path d="M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1" />
+              </svg>
+            </div>
+            <p class="empty-title">Nothing to explore yet</p>
+            <p class="empty-text">Paste JSON, drop a <strong>.json</strong> file, or start with a sample.</p>
+            <button id="btn-empty-sample" class="btn btn-primary" type="button">Load sample</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <p class="footer-privacy">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      </svg>
+      Everything happens in your browser — no uploads, no servers, no tracking.
+    </p>
+    <p class="footer-credit">Developed by <a href="https://iamyvj.github.io/" target="_blank" rel="noopener noreferrer">Yashvardhan Jain</a></p>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
