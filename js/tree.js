@@ -86,9 +86,12 @@ export function createTreeView(container, callbacks = {}) {
   let totalNodes = 0;
   let selectedRow = null;
 
-  // search state
+  // search state — shared by substring search and JSONPath queries.
+  // matchMode decides how a match is shown: 'text' highlights the matching
+  // substring inside a key/value span; 'path' highlights the whole matched row.
   let matches = [];
   let matchIndex = -1;
+  let matchMode = 'text';
   const decorated = [];
 
   container.setAttribute('role', 'tree');
@@ -512,8 +515,11 @@ export function createTreeView(container, callbacks = {}) {
     }
     decorated.length = 0;
     container.querySelectorAll('.jt-row.is-current').forEach((r) => r.classList.remove('is-current'));
+    container.querySelectorAll('.jt-row.jt-path-hit').forEach((r) => r.classList.remove('jt-path-hit'));
     matches = [];
     matchIndex = -1;
+    matchMode = 'text';
+    container._searchQuery = '';
   }
 
   function highlightSpan(span, query) {
@@ -609,13 +615,41 @@ export function createTreeView(container, callbacks = {}) {
     return { count: matches.length, index: matchIndex + 1 };
   }
 
+  // Highlight a set of nodes located by positional address (as produced by the
+  // JSONPath engine). Reuses the search match cursor so next/previous work too.
+  function highlightPaths(addresses) {
+    clearHighlights();
+    matchMode = 'path';
+    if (!addresses || addresses.length === 0) return { count: 0, index: 0 };
+
+    matches = addresses.map((address) => ({ address }));
+
+    // Expand ancestors + mark rows up to a cap to stay responsive on big docs.
+    const cap = Math.min(matches.length, SEARCH_HIGHLIGHT_CAP);
+    for (let i = 0; i < cap; i++) {
+      const wrapper = wrapperByAddress(matches[i].address);
+      if (wrapper) wrapper._row.classList.add('jt-path-hit');
+    }
+    if (matches.length > SEARCH_HIGHLIGHT_CAP) {
+      onNotice(`${matches.length.toLocaleString()} matches — highlighting the first ${SEARCH_HIGHLIGHT_CAP.toLocaleString()}.`);
+    }
+    matchIndex = 0;
+    focusMatch();
+    return { count: matches.length, index: matchIndex + 1 };
+  }
+
   function focusMatch() {
     if (matchIndex < 0 || matchIndex >= matches.length) return;
     container.querySelectorAll('.jt-row.is-current').forEach((r) => r.classList.remove('is-current'));
     const wrapper = wrapperByAddress(matches[matchIndex].address);
     if (!wrapper) return;
-    // Make sure beyond-cap matches are highlighted too.
-    if (matchIndex >= SEARCH_HIGHLIGHT_CAP) decorateMatch(matches[matchIndex]);
+    // Make sure beyond-cap matches are decorated too (the up-front pass stops
+    // at SEARCH_HIGHLIGHT_CAP). Path matches highlight the whole row; text
+    // matches highlight the matching substring inside the key/value span.
+    if (matchIndex >= SEARCH_HIGHLIGHT_CAP) {
+      if (matchMode === 'path') wrapper._row.classList.add('jt-path-hit');
+      else decorateMatch(matches[matchIndex]);
+    }
     wrapper._row.classList.add('is-current');
     wrapper._row.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
@@ -682,6 +716,7 @@ export function createTreeView(container, callbacks = {}) {
     collapseAll,
     expandToDepth,
     search,
+    highlightPaths,
     nextMatch,
     prevMatch,
     clearSearch: clearHighlights,

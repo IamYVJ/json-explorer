@@ -142,12 +142,17 @@
               </select>
             </div>
           </div>
-          <div class="search-box">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <div class="search-box" id="search-box">
+            <select id="search-mode" class="search-mode" aria-label="Search mode" title="Find = substring match · JSONPath = query expression">
+              <option value="find">Find</option>
+              <option value="path">JSONPath</option>
+            </select>
+            <svg class="search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
             </svg>
             <input id="search-input" class="search-input" type="search" placeholder="Search keys & values…" aria-label="Search the tree" />
             <span class="search-count" id="search-count"></span>
+            <button id="btn-path-copy" class="search-nav search-copy" type="button" aria-label="Copy matched values" title="Copy all matches as a JSON array" hidden>Copy</button>
             <button id="btn-search-prev" class="search-nav" type="button" aria-label="Previous match" title="Previous (Shift+Enter)">‹</button>
             <button id="btn-search-next" class="search-nav" type="button" aria-label="Next match" title="Next (Enter)">›</button>
           </div>

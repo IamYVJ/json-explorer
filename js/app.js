@@ -9,6 +9,7 @@ import { parseJSON } from './parser.js';
 import { format, minify } from './serialize.js';
 import { computeStats, byteLength, formatBytes } from './stats.js';
 import { createTreeView } from './tree.js';
+import { evaluateJSONPath } from './jsonpath.js';
 import { SAMPLE_JSON } from './sample.js';
 
 const $ = (id) => document.getElementById(id);
@@ -50,8 +51,11 @@ const pathBar = $('path-bar');
 const pathText = $('path-text');
 const btnCopyNode = $('btn-copy-node');
 
+const searchBox = $('search-box');
+const searchMode = $('search-mode');
 const searchInput = $('search-input');
 const searchCount = $('search-count');
+const btnPathCopy = $('btn-path-copy');
 
 const filenameInput = $('filename');
 const toastEl = $('toast');
@@ -61,6 +65,7 @@ let currentView = 'tree';
 let lastResult = null; // { ok, ast, error, warnings }
 let selectedNode = null; // { dotPath, bracketPath, valueText }
 let debounceTimer = null;
+let lastPathMatches = null; // matched AST nodes from the most recent JSONPath query
 
 // ============================================================
 // Local persistence (input + settings)
@@ -90,6 +95,7 @@ function persistOpts() {
     lenient: lenientToggle.checked,
     view: currentView,
     remember: rememberToggle.checked,
+    searchMode: searchMode.value,
   }));
 }
 
@@ -228,7 +234,8 @@ function processInput() {
     emptyState.hidden = false;
     updateGutter(0);
     searchInput.value = '';
-    searchCount.textContent = '';
+    lastPathMatches = null;
+    setSearchCount('');
     lsRemove(STORAGE_INPUT);
     return;
   }
@@ -449,17 +456,56 @@ expandLevel.addEventListener('change', () => {
   if (v > 0) tree.expandToDepth(v);
 });
 
-// Search
+// Search — two modes: "find" (substring) and "path" (JSONPath query).
 let searchDebounce = null;
+
+function setSearchCount(text, isError = false) {
+  searchCount.textContent = text;
+  searchCount.classList.toggle('is-error', !!isError);
+  searchCount.title = isError ? text : '';
+}
+
+function updateSearchModeUI() {
+  const isPath = searchMode.value === 'path';
+  searchBox.classList.toggle('is-path', isPath);
+  btnPathCopy.hidden = !isPath;
+  searchInput.placeholder = isPath ? 'JSONPath, e.g. $.items[*].name or $..price' : 'Search keys & values…';
+  searchInput.setAttribute('aria-label', isPath ? 'JSONPath query' : 'Search the tree');
+}
+
 function runSearch() {
   const q = searchInput.value.trim();
   if (!q) {
+    lastPathMatches = null;
     tree.clearSearch();
-    searchCount.textContent = '';
+    setSearchCount('');
     return;
   }
+
+  if (searchMode.value === 'path') {
+    if (!lastResult || !lastResult.ok) {
+      lastPathMatches = null;
+      tree.clearSearch();
+      setSearchCount('Need valid JSON', true);
+      return;
+    }
+    const res = evaluateJSONPath(lastResult.ast, q);
+    if (!res.ok) {
+      lastPathMatches = null;
+      tree.clearSearch();
+      setSearchCount(res.error, true);
+      return;
+    }
+    lastPathMatches = res.matches;
+    const r = tree.highlightPaths(res.matches.map((m) => m.address));
+    if (r.count === 0) setSearchCount('No matches');
+    else setSearchCount(`${r.index}/${r.count}${res.truncated ? '+' : ''}`);
+    return;
+  }
+
+  lastPathMatches = null;
   const r = tree.search(q);
-  searchCount.textContent = r.count === 0 ? 'No matches' : `${r.index}/${r.count}`;
+  setSearchCount(r.count === 0 ? 'No matches' : `${r.index}/${r.count}`);
 }
 
 searchInput.addEventListener('input', () => {
@@ -471,22 +517,42 @@ searchInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     const r = e.shiftKey ? tree.prevMatch() : tree.nextMatch();
-    if (r.count) searchCount.textContent = `${r.index}/${r.count}`;
+    if (r.count) setSearchCount(`${r.index}/${r.count}`);
   } else if (e.key === 'Escape') {
     searchInput.value = '';
+    lastPathMatches = null;
     tree.clearSearch();
-    searchCount.textContent = '';
+    setSearchCount('');
     searchInput.blur();
   }
 });
 
+// Switching mode re-evaluates the current query under the new interpretation.
+searchMode.addEventListener('change', () => {
+  updateSearchModeUI();
+  persistOpts();
+  runSearch();
+});
+
 $('btn-search-next').addEventListener('click', () => {
   const r = tree.nextMatch();
-  if (r.count) searchCount.textContent = `${r.index}/${r.count}`;
+  if (r.count) setSearchCount(`${r.index}/${r.count}`);
 });
 $('btn-search-prev').addEventListener('click', () => {
   const r = tree.prevMatch();
-  if (r.count) searchCount.textContent = `${r.index}/${r.count}`;
+  if (r.count) setSearchCount(`${r.index}/${r.count}`);
+});
+
+// Copy all JSONPath matches as a JSON array, honouring the current
+// indentation / sort-keys settings.
+btnPathCopy.addEventListener('click', () => {
+  if (!lastPathMatches || lastPathMatches.length === 0) {
+    toast('No matches to copy');
+    return;
+  }
+  const arrayNode = { t: 'array', items: lastPathMatches.map((m) => m.node) };
+  const text = format(arrayNode, { indent: indentString(), sortKeys: sortKeysToggle.checked });
+  copyText(text, `Copied ${lastPathMatches.length} match${lastPathMatches.length === 1 ? '' : 'es'}`);
 });
 
 // ============================================================
@@ -585,8 +651,9 @@ document.addEventListener('keydown', (e) => {
     if (searchInput.value || searchCount.textContent) {
       e.preventDefault();
       searchInput.value = '';
+      lastPathMatches = null;
       tree.clearSearch();
-      searchCount.textContent = '';
+      setSearchCount('');
     }
   }
 });
@@ -611,6 +678,7 @@ let restoredView = null;
       if (typeof o.sortKeys === 'boolean') sortKeysToggle.checked = o.sortKeys;
       if (typeof o.lenient === 'boolean') lenientToggle.checked = o.lenient;
       if (typeof o.remember === 'boolean') rememberToggle.checked = o.remember;
+      if (o.searchMode === 'path' || o.searchMode === 'find') searchMode.value = o.searchMode;
       if (o.view && views[o.view]) restoredView = o.view;
     } catch {}
   }
@@ -625,6 +693,7 @@ let restoredView = null;
 }
 
 editor.style.tabSize = indentSelect.value === 'tab' ? '4' : indentSelect.value;
+updateSearchModeUI();
 updateGutter(0);
 processInput();
 if (restoredView && restoredView !== 'tree') switchView(restoredView);
