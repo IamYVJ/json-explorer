@@ -462,6 +462,10 @@ label.btn { position: relative; }
 }
 .toggle input { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
 
+/* "Remember input" sits beside the input action buttons; a hair-line divider
+   sets the persistence setting apart from the one-shot actions. */
+.toggle-remember { margin-left: 2px; padding-left: 10px; border-left: 1px solid var(--border-subtle); }
+
 /* ---------------- output toolbar ---------------- */
 
 .output-toolbar {

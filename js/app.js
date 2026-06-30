@@ -19,6 +19,7 @@ const editorWrap = $('editor-wrap');
 const gutter = $('gutter');
 const dropOverlay = $('drop-overlay');
 const fileInput = $('file-input');
+const rememberToggle = $('remember-input');
 
 const statusState = $('status-state');
 const statusDetail = $('status-detail');
@@ -74,16 +75,21 @@ function lsSet(key, val) { try { localStorage.setItem(key, val); } catch {} }
 function lsRemove(key) { try { localStorage.removeItem(key); } catch {} }
 
 function persistInput(text) {
+  // Opt-in only: never store the input unless "Remember input" is enabled.
+  if (!rememberToggle.checked) return;
   // Keep oversized inputs out of storage (and clear any stale copy).
   if (text.length > MAX_PERSIST) { lsRemove(STORAGE_INPUT); return; }
   lsSet(STORAGE_INPUT, text);
 }
 function persistOpts() {
+  // Settings (incl. the remember preference) are harmless UI state, so they
+  // persist regardless of the toggle — only the JSON input itself is gated.
   lsSet(STORAGE_OPTS, JSON.stringify({
     indent: indentSelect.value,
     sortKeys: sortKeysToggle.checked,
     lenient: lenientToggle.checked,
     view: currentView,
+    remember: rememberToggle.checked,
   }));
 }
 
@@ -418,6 +424,19 @@ btnJumpError.addEventListener('click', () => {
 );
 lenientToggle.addEventListener('change', () => { persistOpts(); processInput(); });
 
+// "Remember input": opt-in local persistence. Reflect the choice immediately —
+// turning it on saves the current input; turning it off forgets any stored copy.
+rememberToggle.addEventListener('change', () => {
+  persistOpts();
+  if (rememberToggle.checked) {
+    persistInput(editor.value);
+    toast('Input will be remembered on this device');
+  } else {
+    lsRemove(STORAGE_INPUT);
+    toast('Saved input cleared');
+  }
+});
+
 // ============================================================
 // Tree toolbar
 // ============================================================
@@ -591,11 +610,18 @@ let restoredView = null;
       if (o.indent != null) indentSelect.value = String(o.indent);
       if (typeof o.sortKeys === 'boolean') sortKeysToggle.checked = o.sortKeys;
       if (typeof o.lenient === 'boolean') lenientToggle.checked = o.lenient;
+      if (typeof o.remember === 'boolean') rememberToggle.checked = o.remember;
       if (o.view && views[o.view]) restoredView = o.view;
     } catch {}
   }
-  const savedInput = lsGet(STORAGE_INPUT);
-  if (savedInput) editor.value = savedInput;
+  // Only restore the saved input when the user opted in; otherwise discard any
+  // stale copy so nothing lingers (e.g. on a shared machine).
+  if (rememberToggle.checked) {
+    const savedInput = lsGet(STORAGE_INPUT);
+    if (savedInput) editor.value = savedInput;
+  } else {
+    lsRemove(STORAGE_INPUT);
+  }
 }
 
 editor.style.tabSize = indentSelect.value === 'tab' ? '4' : indentSelect.value;
