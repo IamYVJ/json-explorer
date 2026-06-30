@@ -41,10 +41,13 @@ const lenientToggle = $('lenient');
 
 const treeContainer = $('tree-container');
 const formattedPre = $('formatted-pre');
+const formattedGutter = $('formatted-gutter');
 const minifiedPre = $('minified-pre');
+const expandLevel = $('expand-level');
 
 const pathBar = $('path-bar');
 const pathText = $('path-text');
+const btnCopyNode = $('btn-copy-node');
 
 const searchInput = $('search-input');
 const searchCount = $('search-count');
@@ -57,6 +60,32 @@ let currentView = 'tree';
 let lastResult = null; // { ok, ast, error, warnings }
 let selectedNode = null; // { dotPath, bracketPath, valueText }
 let debounceTimer = null;
+
+// ============================================================
+// Local persistence (input + settings)
+// Everything stays in this browser via localStorage — nothing is transmitted.
+// ============================================================
+const STORAGE_INPUT = 'json-explorer-input';
+const STORAGE_OPTS = 'json-explorer-opts';
+const MAX_PERSIST = 2_000_000; // ~2 MB cap: skip persisting larger inputs to avoid quota/jank
+
+function lsGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function lsSet(key, val) { try { localStorage.setItem(key, val); } catch {} }
+function lsRemove(key) { try { localStorage.removeItem(key); } catch {} }
+
+function persistInput(text) {
+  // Keep oversized inputs out of storage (and clear any stale copy).
+  if (text.length > MAX_PERSIST) { lsRemove(STORAGE_INPUT); return; }
+  lsSet(STORAGE_INPUT, text);
+}
+function persistOpts() {
+  lsSet(STORAGE_OPTS, JSON.stringify({
+    indent: indentSelect.value,
+    sortKeys: sortKeysToggle.checked,
+    lenient: lenientToggle.checked,
+    view: currentView,
+  }));
+}
 
 // ============================================================
 // Toast
@@ -103,6 +132,9 @@ const tree = createTreeView(treeContainer, {
     selectedNode = info;
     pathBar.hidden = false;
     pathText.textContent = info.dotPath;
+    const isContainer = info.type === 'object' || info.type === 'array';
+    btnCopyNode.textContent = isContainer ? 'Copy JSON' : 'Copy value';
+    btnCopyNode.title = isContainer ? "Copy this node's JSON (whole subtree)" : "Copy this node's value";
   },
   onCopy: (text, label) => copyText(text, label),
   onNotice: (msg) => toast(msg),
@@ -132,6 +164,22 @@ function updateGutter(errorLine) {
 
 editor.addEventListener('scroll', () => {
   gutter.scrollTop = editor.scrollTop;
+});
+
+// Line numbers for the Formatted view, kept in sync with its <pre> on scroll.
+// The gutter is aria-hidden and user-select:none so copy/selection ignores it.
+function updateFormattedGutter() {
+  const text = formattedPre.textContent;
+  if (!text) { formattedGutter.textContent = ''; return; }
+  const lines = text.split('\n').length;
+  let out = '';
+  for (let i = 1; i <= lines; i++) out += i + '\n';
+  formattedGutter.textContent = out;
+  formattedGutter.scrollTop = formattedPre.scrollTop;
+}
+
+formattedPre.addEventListener('scroll', () => {
+  formattedGutter.scrollTop = formattedPre.scrollTop;
 });
 
 // ============================================================
@@ -169,13 +217,18 @@ function processInput() {
     pathBar.hidden = true;
     tree.clear();
     formattedPre.textContent = '';
+    formattedGutter.textContent = '';
     minifiedPre.textContent = '';
     emptyState.hidden = false;
     updateGutter(0);
     searchInput.value = '';
     searchCount.textContent = '';
+    lsRemove(STORAGE_INPUT);
     return;
   }
+
+  // Persist the raw text (even when invalid) so work is never lost on reload.
+  persistInput(text);
 
   const result = parseJSON(text, { tolerant: lenientToggle.checked });
   lastResult = result;
@@ -224,6 +277,7 @@ function renderActiveView() {
     if (searchInput.value.trim()) runSearch();
   } else if (currentView === 'formatted') {
     formattedPre.textContent = format(ast, { indent, sortKeys });
+    updateFormattedGutter();
   } else if (currentView === 'minified') {
     minifiedPre.textContent = minify(ast, { sortKeys });
   }
@@ -261,6 +315,7 @@ function switchView(view) {
   // Empty state only matters when there's no valid output.
   emptyState.hidden = !!(lastResult && lastResult.ok);
 
+  persistOpts();
   renderActiveView();
 }
 
@@ -355,18 +410,25 @@ btnJumpError.addEventListener('click', () => {
 [indentSelect, sortKeysToggle].forEach((el) =>
   el.addEventListener('change', () => {
     editor.style.tabSize = indentSelect.value === 'tab' ? '4' : indentSelect.value;
+    persistOpts();
     // Indentation and key-sorting only affect the text views; re-rendering the
     // tree here would needlessly collapse it.
     if (currentView !== 'tree') renderActiveView();
   })
 );
-lenientToggle.addEventListener('change', processInput);
+lenientToggle.addEventListener('change', () => { persistOpts(); processInput(); });
 
 // ============================================================
 // Tree toolbar
 // ============================================================
 $('btn-expand').addEventListener('click', () => tree.expandAll());
 $('btn-collapse').addEventListener('click', () => tree.collapseAll());
+
+// Expand the tree to a chosen depth.
+expandLevel.addEventListener('change', () => {
+  const v = parseInt(expandLevel.value, 10);
+  if (v > 0) tree.expandToDepth(v);
+});
 
 // Search
 let searchDebounce = null;
@@ -417,8 +479,15 @@ $('btn-copy-path').addEventListener('click', () => {
 $('btn-copy-bracket').addEventListener('click', () => {
   if (selectedNode) copyText(selectedNode.bracketPath, 'Bracket path copied');
 });
-$('btn-copy-node').addEventListener('click', () => {
-  if (selectedNode) copyText(selectedNode.valueText, 'Value copied');
+btnCopyNode.addEventListener('click', () => {
+  if (!selectedNode) return;
+  const node = selectedNode.node;
+  if (node && (node.t === 'object' || node.t === 'array')) {
+    // Re-serialize the subtree with the current indentation / sort-keys settings.
+    copyText(format(node, { indent: indentString(), sortKeys: sortKeysToggle.checked }), 'JSON copied');
+  } else {
+    copyText(selectedNode.valueText, 'Value copied');
+  }
 });
 
 // ============================================================
@@ -474,10 +543,15 @@ $('theme-toggle').addEventListener('click', () => {
 // ============================================================
 document.addEventListener('keydown', (e) => {
   const mod = e.ctrlKey || e.metaKey;
-  // Ctrl/Cmd+Enter -> format
-  if (mod && e.key === 'Enter') {
+  // Ctrl/Cmd+Enter or Ctrl/Cmd+B -> beautify (format)
+  if (mod && (e.key === 'Enter' || e.key.toLowerCase() === 'b')) {
     e.preventDefault();
     switchView('formatted');
+  }
+  // Ctrl/Cmd+M -> minify
+  if (mod && e.key.toLowerCase() === 'm') {
+    e.preventDefault();
+    switchView('minified');
   }
   // Ctrl/Cmd+F -> focus tree search (when not in editor)
   if (mod && e.key.toLowerCase() === 'f' && document.activeElement !== editor) {
@@ -485,6 +559,15 @@ document.addEventListener('keydown', (e) => {
       e.preventDefault();
       searchInput.focus();
       searchInput.select();
+    }
+  }
+  // Esc -> clear an active tree search (the search box handles its own Esc).
+  if (e.key === 'Escape' && document.activeElement !== searchInput) {
+    if (searchInput.value || searchCount.textContent) {
+      e.preventDefault();
+      searchInput.value = '';
+      tree.clearSearch();
+      searchCount.textContent = '';
     }
   }
 });
@@ -498,7 +581,24 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// ---- init ----
+// ---- init: restore persisted state (local only) ----
+let restoredView = null;
+{
+  const rawOpts = lsGet(STORAGE_OPTS);
+  if (rawOpts) {
+    try {
+      const o = JSON.parse(rawOpts);
+      if (o.indent != null) indentSelect.value = String(o.indent);
+      if (typeof o.sortKeys === 'boolean') sortKeysToggle.checked = o.sortKeys;
+      if (typeof o.lenient === 'boolean') lenientToggle.checked = o.lenient;
+      if (o.view && views[o.view]) restoredView = o.view;
+    } catch {}
+  }
+  const savedInput = lsGet(STORAGE_INPUT);
+  if (savedInput) editor.value = savedInput;
+}
+
 editor.style.tabSize = indentSelect.value === 'tab' ? '4' : indentSelect.value;
 updateGutter(0);
 processInput();
+if (restoredView && restoredView !== 'tree') switchView(restoredView);

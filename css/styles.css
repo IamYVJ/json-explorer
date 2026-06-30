@@ -552,6 +552,27 @@ label.btn { position: relative; }
 }
 .code-pre-wrap { white-space: pre-wrap; word-break: break-all; }
 
+/* Formatted view: line-number gutter mirroring the editor's. */
+.code-wrap { flex: 1; display: flex; min-height: 0; }
+.code-wrap .code-pre { padding-left: 12px; }
+.code-gutter {
+  flex: 0 0 auto;
+  margin: 0;
+  /* top/bottom padding matches .code-pre so number N aligns with line N */
+  padding: 16px 8px 16px 14px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  text-align: right;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  user-select: none;
+  overflow: hidden;
+  white-space: pre;
+  min-width: 44px;
+}
+
 /* ---------------- empty state ---------------- */
 
 .empty-state {

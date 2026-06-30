@@ -127,6 +127,16 @@
           <div class="toolbar-group">
             <button id="btn-expand" class="btn btn-ghost btn-sm" type="button">Expand all</button>
             <button id="btn-collapse" class="btn btn-ghost btn-sm" type="button">Collapse all</button>
+            <div class="select-wrap" title="Expand the tree to a given depth">
+              <select id="expand-level" class="select" aria-label="Expand to depth">
+                <option value="">Depth…</option>
+                <option value="1">Level 1</option>
+                <option value="2">Level 2</option>
+                <option value="3">Level 3</option>
+                <option value="4">Level 4</option>
+                <option value="5">Level 5</option>
+              </select>
+            </div>
           </div>
           <div class="search-box">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -168,7 +178,10 @@
 
           <!-- FORMATTED VIEW (visibility controlled by the .is-active class) -->
           <div class="view view-text" id="view-formatted" role="tabpanel" aria-labelledby="tab-formatted">
-            <pre class="code-pre" id="formatted-pre" tabindex="0"></pre>
+            <div class="code-wrap">
+              <div class="code-gutter" id="formatted-gutter" aria-hidden="true"></div>
+              <pre class="code-pre" id="formatted-pre" tabindex="0"></pre>
+            </div>
           </div>
 
           <!-- MINIFIED VIEW (visibility controlled by the .is-active class) -->

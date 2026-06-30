@@ -1,7 +1,7 @@
 /* Minimal offline cache. All paths are relative so the worker also works
    when the site is served from a GitHub Pages subpath. */
 
-const CACHE = 'json-explorer-v2';
+const CACHE = 'json-explorer-v3';
 const ASSETS = [
   './',
   './index.html',
