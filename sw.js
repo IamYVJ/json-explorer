@@ -1,7 +1,7 @@
 /* Minimal offline cache. All paths are relative so the worker also works
    when the site is served from a GitHub Pages subpath. */
 
-const CACHE = 'json-explorer-v1';
+const CACHE = 'json-explorer-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -19,7 +19,21 @@ const ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then((cache) =>
+        // Fetch with { cache: 'reload' } so precaching bypasses the browser's
+        // HTTP cache — otherwise a returning visitor could re-cache stale files
+        // even after the CACHE version is bumped.
+        Promise.all(
+          ASSETS.map((url) =>
+            fetch(new Request(url, { cache: 'reload' })).then((res) => {
+              if (!res || !res.ok) throw new Error('Precache failed: ' + url);
+              return cache.put(url, res);
+            })
+          )
+        )
+      )
+      .then(() => self.skipWaiting())
   );
 });
 

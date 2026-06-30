@@ -216,6 +216,9 @@ function renderActiveView() {
   const sortKeys = sortKeysToggle.checked;
 
   if (currentView === 'tree') {
+    // The tree is rebuilt, so any previous node selection is no longer valid.
+    selectedNode = null;
+    pathBar.hidden = true;
     tree.render(ast, { expandDepth: 2 });
     // Re-apply active search if present.
     if (searchInput.value.trim()) runSearch();
@@ -352,7 +355,9 @@ btnJumpError.addEventListener('click', () => {
 [indentSelect, sortKeysToggle].forEach((el) =>
   el.addEventListener('change', () => {
     editor.style.tabSize = indentSelect.value === 'tab' ? '4' : indentSelect.value;
-    renderActiveView();
+    // Indentation and key-sorting only affect the text views; re-rendering the
+    // tree here would needlessly collapse it.
+    if (currentView !== 'tree') renderActiveView();
   })
 );
 lenientToggle.addEventListener('change', processInput);

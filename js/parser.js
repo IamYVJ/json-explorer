@@ -344,6 +344,15 @@ export function parseJSON(text, options = {}) {
         error: { message: err.message, line, column, index: err.index },
       };
     }
+    if (err instanceof RangeError) {
+      // The recursive parser hit the call-stack limit on extremely deep nesting.
+      const { line, column } = locate(i);
+      return {
+        ok: false,
+        warnings,
+        error: { message: 'Structure is nested too deeply to parse', line, column, index: i },
+      };
+    }
     // Never leak an uncaught error.
     return {
       ok: false,
